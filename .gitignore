@@ -1,0 +1,40 @@
+
+# Private financial data
+local_data/
+
+# PDFs and CSVs are private by default
+*.pdf
+*.csv
+
+# Allow explicitly approved synthetic examples
+!examples/
+!examples/*.pdf
+!examples/*.csv
+
+# Secrets
+.env
+.env.*
+
+# Python and Jupyter
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+.pytest_cache/
+
+# Local databases
+*.db
+*.sqlite
+*.sqlite3
+
+# Environments
+.venv/
+venv/
+
+# Editor and OS files
+.vscode/
+.DS_Store
+Thumbs.db
+
+
+# Local generated demo outputs
+demo_data/
