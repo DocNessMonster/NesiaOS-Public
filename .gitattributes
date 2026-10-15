@@ -1,0 +1,2 @@
+*.pdf binary
+examples/demo_expected_totals.csv -text
