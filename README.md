@@ -1,8 +1,12 @@
 # NesiaOS
 
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://nesiaos-public.streamlit.app/)
+
+**[Try the live, interactive NesiaOS demo](https://nesiaos-public.streamlit.app/)** — explore the unified rental and mortgage dashboard with **100% fictional financial data**. No personal financial records are included.
+
 **A self-hosted rental-property financial analytics dashboard built with Python, SQLite, and Streamlit.**
 
-NesiaOS converts supported property-management and mortgage-history PDFs into validated, structured data and combines them in a single interactive rental-property dashboard. This public repository contains only application code, automated tests, and **completely fictional demonstration documents**. It does not host the owner's financial information or a live public server.
+NesiaOS converts supported property-management and mortgage-history PDFs into validated, structured data and combines them in a single interactive rental-property dashboard. This public repository contains only application code, automated tests, and **completely fictional demonstration documents**. It never includes the owner's real financial information. A separate public Streamlit Cloud demo runs only on fictional sample data.
 
 ## What's new in V1.1
 
@@ -25,6 +29,8 @@ Mortgage history PDF ---> mortgage_importer.py --> mortgage.sqlite-+--> dashboar
 ```
 
 ## Interactive public demo on Streamlit Community Cloud
+
+**Live URL: https://nesiaos-public.streamlit.app/**
 
 The public demo has its own entrypoint, `streamlit_app.py`, which automatically imports only the committed **fictional** PDF fixtures into fresh temporary SQLite databases. It does not use the private Ubuntu server, a real owner's statements, or private databases. The dashboard displays a prominent public-demo label.
 
