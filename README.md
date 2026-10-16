@@ -24,6 +24,14 @@ Mortgage history PDF ---> mortgage_importer.py --> mortgage.sqlite-+--> dashboar
                                                                           Streamlit
 ```
 
+## Interactive public demo on Streamlit Community Cloud
+
+The public demo has its own entrypoint, `streamlit_app.py`, which automatically imports only the committed **fictional** PDF fixtures into fresh temporary SQLite databases. It does not use the private Ubuntu server, a real owner's statements, or private databases. The dashboard displays a prominent public-demo label.
+
+To deploy: sign in to [Streamlit Community Cloud](https://share.streamlit.io/), select **Create app / Deploy app**, connect the public GitHub repository `DocNessMonster/NesiaOS-Public`, set branch `main` and entrypoint `streamlit_app.py`, choose a public app URL, and deploy. Streamlit installs dependencies from `requirements.txt`.
+
+To launch the same public demo locally, run `python -m streamlit run streamlit_app.py` (no environment variables or manual importing needed).
+
 ## Run the fully fictional public demo
 
 Requires Python 3.12+ and the dependencies in `requirements.txt`. Run the following from the repository root:

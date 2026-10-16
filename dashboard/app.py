@@ -16,6 +16,8 @@ from src.services.financial_report import monthly_report
 st.set_page_config(page_title="NesiaOS", page_icon="🏠", layout="wide")
 st.title("NesiaOS")
 st.subheader("Rental Property Dashboard")
+if os.environ.get("NESIAOS_PUBLIC_DEMO") == "1":
+    st.info("PUBLIC DEMO — All statements, names, and financial figures are fictional.")
 st.caption("AppFolio statements + mortgage payment history | All amounts in USD")
 
 ROOT = Path(__file__).resolve().parents[1]
