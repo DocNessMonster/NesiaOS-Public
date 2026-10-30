@@ -57,7 +57,7 @@ def test_monthly_table_formats_currency_without_changing_numeric_values(monkeypa
     monkeypatch.setattr(financial_report, "monthly_report", report_with_formatting_edge_cases)
     # The public entrypoint overrides all database paths with synthetic fixtures.
     for key in ("NESIAOS_DB_PATH", "NESIAOS_MORTGAGE_DB_PATH",
-                "NESIAOS_WATER_DB_PATH", "NESIAOS_PUBLIC_DEMO"):
+                "NESIAOS_WATER_DB_PATH", "NESIAOS_VALUATION_DB_PATH", "NESIAOS_PUBLIC_DEMO"):
         monkeypatch.setenv(key, "")
     app = AppTest.from_file(
         str(Path(__file__).resolve().parents[1] / "streamlit_app.py"),
@@ -76,3 +76,24 @@ def test_monthly_table_formats_currency_without_changing_numeric_values(monkeypa
     assert table.value.iloc[0]["Operating expenses"] == 0.1 + 0.2
     assert all(pd.api.types.is_numeric_dtype(table.value[column])
                for column in table.value.columns if column != "Month")
+
+
+def test_public_equity_uses_fictional_values_without_api_calls(monkeypatch):
+    from pathlib import Path
+    from urllib import request
+    from streamlit.testing.v1 import AppTest
+
+    monkeypatch.setattr(request, "urlopen", lambda *a, **kw: pytest.fail("Unexpected API call"))
+    monkeypatch.setenv("NESIAOS_VALUATION_DB_PATH", "/private/must-not-be-read.sqlite")
+    app = AppTest.from_file(
+        str(Path(__file__).resolve().parents[1] / "streamlit_app.py"), default_timeout=30,
+    ).run()
+    assert not app.exception
+    metrics = {metric.label: metric.value for metric in app.metric}
+    assert metrics["Estimated home value"] == "$282,500.00"
+    assert "Estimated equity" in metrics
+    # Monthly rental cash flow is unaffected by property appreciation.
+    assert round(app.dataframe[-1].value["Actual cash flow"].sum(), 2) == 3935.30
+    history = app.dataframe[-2].value
+    assert set(history["Source"]) == {"Synthetic demo"}
+    assert len(history) == 6

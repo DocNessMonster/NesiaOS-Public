@@ -92,20 +92,43 @@ def build_demo_water_database(destination: Path) -> Path:
     return water_db
 
 
+def build_demo_valuation_database(destination: Path) -> Path:
+    """Invent six dated estimates locally; never contact a valuation API."""
+    destination = Path(destination)
+    destination.mkdir(parents=True, exist_ok=True)
+    db = destination / "valuations.sqlite"
+    if db.exists():
+        raise FileExistsError("Demo valuation import requires a new database")
+    with sqlite3.connect(db) as conn:
+        conn.execute("""CREATE TABLE property_valuations (
+            property_key TEXT NOT NULL, provider TEXT NOT NULL,
+            retrieval_month TEXT NOT NULL, retrieved_at TEXT NOT NULL,
+            price_cents INTEGER NOT NULL, low_cents INTEGER, high_cents INTEGER,
+            PRIMARY KEY (property_key, provider, retrieval_month))""")
+        for index, month in enumerate(range(4, 10)):
+            value = 27500000 + index * 150000
+            conn.execute("INSERT INTO property_valuations VALUES (?, ?, ?, ?, ?, ?, ?)", (
+                "fictional-demo-property", "Synthetic demo", f"2026-{month:02d}",
+                f"2026-{month:02d}-28T12:00:00+00:00", value, value - 2500000, value + 2500000,
+            ))
+    return db
+
+
 def main() -> None:
     import streamlit as st
 
     @st.cache_resource(show_spinner=False)
-    def prepare_demo() -> tuple[Path, Path, Path]:
+    def prepare_demo() -> tuple[Path, Path, Path, Path]:
         destination = Path(tempfile.mkdtemp(prefix="nesiaos_public_demo_"))
         owner, mortgage = build_demo_databases(destination)
-        return owner, mortgage, build_demo_water_database(destination)
+        return owner, mortgage, build_demo_water_database(destination), build_demo_valuation_database(destination)
 
-    owner_db, mortgage_db, water_db = prepare_demo()
+    owner_db, mortgage_db, water_db, valuation_db = prepare_demo()
     # Override preexisting settings: this entrypoint must NEVER use private data.
     os.environ["NESIAOS_DB_PATH"] = str(owner_db)
     os.environ["NESIAOS_MORTGAGE_DB_PATH"] = str(mortgage_db)
     os.environ["NESIAOS_WATER_DB_PATH"] = str(water_db)
+    os.environ["NESIAOS_VALUATION_DB_PATH"] = str(valuation_db)
     os.environ["NESIAOS_PUBLIC_DEMO"] = "1"
     runpy.run_path(str(ROOT / "dashboard" / "app.py"), run_name="__main__")
 

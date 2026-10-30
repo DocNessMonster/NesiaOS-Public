@@ -13,6 +13,7 @@ import streamlit as st
 from src.services.financial_report import monthly_report, DEFAULT_DB_PATH
 from src.services.water_report import read_bills, monthly_water_report
 from src.services.water_importer import record_payment
+from src.services.property_value_report import read_valuations, calculate_equity, equity_history
 
 
 st.set_page_config(page_title="NesiaOS", page_icon="🏠", layout="wide")
@@ -75,6 +76,7 @@ MORTGAGE_DB = Path(os.environ.get("NESIAOS_MORTGAGE_DB_PATH") or ROOT / "local_d
 
 WATER_DB = Path(os.environ.get("NESIAOS_WATER_DB_PATH") or ROOT / "local_data" / "water" / "water.sqlite").expanduser()
 OWNER_DB = Path(os.environ.get("NESIAOS_DB_PATH") or DEFAULT_DB_PATH).expanduser()
+VALUATION_DB = Path(os.environ.get("NESIAOS_VALUATION_DB_PATH") or ROOT / "local_data" / "valuation" / "valuations.sqlite").expanduser()
 
 
 def dollars(value):
@@ -315,6 +317,50 @@ with escrow_col:
     st.metric("Taxes paid from escrow (YTD)", dollars(tax_paid))
     st.metric("Insurance paid from escrow (YTD)", dollars(insurance_paid))
 
+st.divider()
+st.subheader("Estimated Property Equity — Latest Available")
+st.caption("Uses the latest saved estimate and mortgage balance, independently of the reporting-month filter.")
+try:
+    valuations = read_valuations(VALUATION_DB)
+    if valuations.empty:
+        st.info("No property valuation saved yet. Import an estimate to show equity here.")
+    else:
+        valuation = valuations.iloc[-1]
+        current_mortgage = payments.sort_values("effective_date").iloc[-1]
+        equity, equity_percent = calculate_equity(valuation["estimated_value"], current_mortgage["principal_balance"])
+        value_col, debt_col, equity_col = st.columns(3)
+        value_col.metric("Estimated home value", dollars(valuation["estimated_value"]))
+        value_col.caption(f"{valuation['provider']} · retrieved {valuation['retrieved_at']:%B %d, %Y}")
+        if pd.notna(valuation["range_low"]) and pd.notna(valuation["range_high"]):
+            value_col.caption(f"Provider range: {dollars(valuation['range_low'])}–{dollars(valuation['range_high'])}")
+        debt_col.metric("Latest mortgage balance", dollars(current_mortgage["principal_balance"]))
+        debt_col.caption(f"Statement balance as of {current_mortgage['effective_date']:%B %d, %Y}")
+        equity_col.metric("Estimated equity", dollars(equity))
+        equity_col.caption(f"{equity_percent:.1f}% of estimated value")
+        age = (pd.Timestamp.now(tz="UTC") - valuation["retrieved_at"]).days
+        if age > 62:
+            st.warning(f"The latest valuation was retrieved {age} days ago. Refresh it for a more recent estimate.")
+        st.caption("Estimated equity = estimated home value − mortgage principal. This is separate from cash flow "
+                   "and does not deduct selling costs, taxes, or other loans. An automated estimate is not an appraisal.")
+        history = equity_history(valuations, payments)
+        if len(history) > 1:
+            st.line_chart(history.set_index("valuation_date")[["estimated_value", "estimated_equity"]].rename(
+                columns={"estimated_value": "Estimated home value", "estimated_equity": "Estimated equity"}))
+        with st.expander("Valuation & equity history"):
+            st.caption("Historical equity uses only mortgage records dated on or before each valuation retrieval date. "
+                       "A missing earlier mortgage balance leaves historical equity blank.")
+            history = history.rename(columns={
+                "valuation_date": "Valuation retrieved", "provider": "Source", "estimated_value": "Estimated value",
+                "range_low": "Range low", "range_high": "Range high", "effective_date": "Mortgage balance date",
+                "principal_balance": "Mortgage balance", "estimated_equity": "Estimated equity",
+            })
+            st.dataframe(history.style.format({
+                name: dollars for name in ("Estimated value", "Range low", "Range high", "Mortgage balance", "Estimated equity")
+            }, na_rep="—"), hide_index=True, use_container_width=True)
+except (ValueError, sqlite3.Error, pd.errors.DatabaseError) as exc:
+    st.warning(f"Property valuations need review: {exc}")
+
+st.divider()
 st.subheader("Monthly Financial Details")
 monthly_details = combined.loc[combined["month"] <= selected_month, [
         "month", "operating_income", "operating_expenses", "owner_distributions",
