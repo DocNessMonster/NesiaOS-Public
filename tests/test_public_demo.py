@@ -35,3 +35,44 @@ def test_public_demo_never_writes_into_an_existing_database(tmp_path):
     (destination / "nesiaos.sqlite").write_bytes(b"existing data must not be overwritten")
     with pytest.raises(FileExistsError):
         build_demo_databases(destination)
+
+
+def test_monthly_table_formats_currency_without_changing_numeric_values(monkeypatch):
+    from pathlib import Path
+
+    import pandas as pd
+    from streamlit.dataframe_util import convert_arrow_bytes_to_pandas_df
+    from streamlit.testing.v1 import AppTest
+    from src.services import financial_report
+
+    original_report = financial_report.monthly_report
+
+    def report_with_formatting_edge_cases(*args, **kwargs):
+        report = original_report(*args, **kwargs).copy()
+        report["operating_income"] = 1234.5
+        report["operating_expenses"] = 0.1 + 0.2
+        report["owner_distributions"] = -12.5
+        return report
+
+    monkeypatch.setattr(financial_report, "monthly_report", report_with_formatting_edge_cases)
+    # The public entrypoint overrides all database paths with synthetic fixtures.
+    for key in ("NESIAOS_DB_PATH", "NESIAOS_MORTGAGE_DB_PATH",
+                "NESIAOS_WATER_DB_PATH", "NESIAOS_PUBLIC_DEMO"):
+        monkeypatch.setenv(key, "")
+    app = AppTest.from_file(
+        str(Path(__file__).resolve().parents[1] / "streamlit_app.py"),
+        default_timeout=30,
+    ).run()
+    assert not app.exception
+    table = app.dataframe[-1]
+    # Streamlit moved Arrow data into a nested message in newer releases.
+    arrow = getattr(table.proto, "arrow_data", table.proto)
+    assert arrow.styler.display_values, "Monthly currency formatting is missing"
+    displayed = convert_arrow_bytes_to_pandas_df(arrow.styler.display_values)
+    assert displayed.iloc[0]["Operating income (incl. reimbursements)"] == "$1,234.50"
+    assert displayed.iloc[0]["Operating expenses"] == "$0.30"
+    assert displayed.iloc[0]["Owner distributions"] == "-$12.50"
+    assert displayed.iloc[0]["Month"] == "2026-04"
+    assert table.value.iloc[0]["Operating expenses"] == 0.1 + 0.2
+    assert all(pd.api.types.is_numeric_dtype(table.value[column])
+               for column in table.value.columns if column != "Month")

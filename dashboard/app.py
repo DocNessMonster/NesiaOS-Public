@@ -316,8 +316,7 @@ with escrow_col:
     st.metric("Insurance paid from escrow (YTD)", dollars(insurance_paid))
 
 st.subheader("Monthly Financial Details")
-st.dataframe(
-    combined.loc[combined["month"] <= selected_month, [
+monthly_details = combined.loc[combined["month"] <= selected_month, [
         "month", "operating_income", "operating_expenses", "owner_distributions",
         "mortgage_payment", "principal_paid", "interest_paid", "escrow_contribution",
         "actual_cash_flow", "water_billed", "water_paid", "utility_reimbursements",
@@ -334,7 +333,12 @@ st.dataframe(
         "water_billed": "Water charges billed",
         "water_paid": "Confirmed water payments",
         "utility_reimbursements": "Utility reimbursements (already in income)",
-    }),
+    })
+st.dataframe(
+    monthly_details.style.format(
+        {column: dollars for column in monthly_details.columns if column != "Month"},
+        na_rep="—",
+    ),
     use_container_width=True,
     hide_index=True,
 )
