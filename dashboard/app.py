@@ -14,6 +14,53 @@ from src.services.financial_report import monthly_report
 
 
 st.set_page_config(page_title="NesiaOS", page_icon="🏠", layout="wide")
+
+if st.query_params.get("page") == "privacy":
+    st.title("NesiaOS Privacy Policy")
+    st.markdown("""
+Updated October 30, 2026
+
+### Scope
+This policy covers the NesiaOS personal Gmail bill importer.
+The public NesiaOS dashboard uses fictional demonstration data
+and does not connect to visitors' Gmail accounts.
+
+### Gmail access and use
+The local importer requests read-only Gmail access. This permission
+allows reading mailbox contents; the application uses a search query
+to find candidate utility-bill messages and PDF attachments.
+
+It downloads matching PDFs and extracts utility account identifiers,
+billing dates, service periods, charges, and balances for personal
+property reporting. It does not send, delete, or modify email.
+
+### Storage and sharing
+Downloaded PDFs, extracted bill records, and Google authorization
+tokens are stored on the computer running the importer. NesiaOS
+does not intentionally upload this information to the public demo,
+sell it, use it for advertising, or use it to train AI models.
+Google processes authorization and Gmail API requests.
+
+Google API data use follows the Google API Services User Data Policy,
+including its Limited Use requirements.
+
+### Retention and deletion
+Local files remain until the user deletes them. Users can revoke
+NesiaOS access in their Google Account's third-party connections.
+Revoking access does not delete previously downloaded PDFs or records;
+those must be deleted separately, along with any backups.
+
+### Public website
+The public demonstration is hosted by Streamlit. Website hosting
+and technical usage data are subject to the hosting provider's policies.
+
+### Contact
+For questions, open an issue at
+https://github.com/DocNessMonster/NesiaOS-Public/issues.
+Do not include credentials, bills, or other private information.
+""")
+    st.stop()
+    
 st.title("NesiaOS")
 st.subheader("Rental Property Dashboard")
 if os.environ.get("NESIAOS_PUBLIC_DEMO") == "1":
