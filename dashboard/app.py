@@ -163,7 +163,7 @@ combined[water_columns] = combined[water_columns].fillna(0)
 # This is NOT the same as property operating cash flow.
 combined["actual_cash_flow"] = (
     combined["owner_distributions"] - combined["mortgage_payment"] - combined["water_paid"]
-)
+).round(2)
 
 missing_appfolio = sorted(set(mortgage_monthly["month"]) - set(report["month"]))
 missing_mortgage = sorted(set(report["month"]) - set(mortgage_monthly["month"]))
@@ -253,8 +253,15 @@ if WATER_DB.is_file():
         st.warning(f"{pending_count} imported bill(s) through this month have no confirmed payment. "
                    "Cash flow excludes those payments until confirmed.")
     st.dataframe(visible_bills.drop(columns=["bill_id"]).rename(columns={
+        "bill_date": "Bill date", "due_date": "Due date", "service_start": "Service start",
+        "service_end": "Service end", "water": "Water", "wastewater": "Wastewater", "solid_waste": "Trash",
+        "balance_forward": "Previous balance", "adjustments": "Adjustments", "payment_date": "Payment date",
         "current_charges": "Current charges", "total_due": "Total due", "payment_amount": "Confirmed amount paid"
-    }), hide_index=True, use_container_width=True)
+    }), hide_index=True, use_container_width=True, column_config={
+        name: st.column_config.NumberColumn(format="$%.2f")
+        for name in ("Water", "Wastewater", "Trash", "Previous balance", "Adjustments",
+                     "Current charges", "Total due", "Confirmed amount paid")
+    })
     if not water_monthly.empty:
         st.bar_chart(water_monthly.loc[water_monthly["month"] <= selected_month].set_index("month")[[
             "water_billed", "utility_reimbursements", "water_paid"

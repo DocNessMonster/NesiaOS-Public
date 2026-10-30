@@ -31,7 +31,7 @@ Generate only the fictional water PDFs with `python examples/generate_water_demo
 Expected utility totals are in `examples/demo_water_expected_totals.csv`.
 The original `demo_expected_totals.csv` still documents the pre-water baseline.
 
-For local Gmail automation, install `python -m pip install -r requirements-gmail.txt`.
+For local Gmail automation in the private checkout, install `python -m pip install -r requirements-gmail.txt`.
 Keep OAuth credentials and tokens in ignored `local_data/gmail/`. Optional
 `NESIAOS_WATER_ACCOUNT` restricts imports to one utility account;
 `NESIAOS_WATER_QUERY` overrides the received-bill search. The importer includes
