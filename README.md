@@ -8,6 +8,36 @@
 
 NesiaOS converts supported property-management and mortgage-history PDFs into validated, structured data and combines them in a single interactive rental-property dashboard. This public repository contains only application code, automated tests, and **completely fictional demonstration documents**. It never includes the owner's real financial information. A separate public Streamlit Cloud demo runs only on fictional sample data.
 
+## Water bills in V1.2
+
+The dashboard includes six fictional April–September utility bills, totaling **$540.00**,
+with invented confirmed payments. Combined six-month owner cash flow after mortgage
+and water payments is **$3,935.30**. The existing **$75.00** utility reimbursement is
+read from AppFolio and is not added to income a second time.
+
+The water section shows current service charges, carried balances, adjustments,
+total due, receipts, and confirmed payments separately. A monthly charge/receipt
+difference does not automatically establish a tenant balance: reimbursements may lag.
+Real bills without confirmed payment dates and amounts stay out of cash flow. In the
+private dashboard, use **Confirm a water bill payment** after checking the actual
+payment. Partial or combined payments require review rather than guessing.
+
+`NESIAOS_WATER_DB_PATH` selects a water database; the private default is
+`local_data/water/water.sqlite`. The public entrypoint always overrides this setting
+with a newly built synthetic database and never connects to Gmail.
+
+Generate only the fictional water PDFs with `python examples/generate_water_demo.py`
+(requires reportlab). The July fixture intentionally continues on a second page.
+Expected utility totals are in `examples/demo_water_expected_totals.csv`.
+The original `demo_expected_totals.csv` still documents the pre-water baseline.
+
+For local Gmail automation, install `python -m pip install -r requirements-gmail.txt`.
+Keep OAuth credentials and tokens in ignored `local_data/gmail/`. Optional
+`NESIAOS_WATER_ACCOUNT` restricts imports to one utility account;
+`NESIAOS_WATER_QUERY` overrides the received-bill search. The importer includes
+archived received bills and excludes Sent mail. Scheduling on one computer updates
+that computer's database; another server needs its own import or a private DB sync.
+
 ## What's new in V1.1
 
 - Import and reconcile supported AppFolio-style owner statements and rotated mortgage payment-history PDFs.
@@ -17,7 +47,7 @@ NesiaOS converts supported property-management and mortgage-history PDFs into va
 - Display latest principal balance and taxes/insurance paid from escrow without double-counting them in cash flow.
 - Use six synthetic monthly owner statements and a synthetic mortgage history to exercise an example negative cash-flow month.
 
-**Actual cash flow** here means *AppFolio owner distributions minus mortgage payments paid personally*. Other owner-paid costs are not included. Owner distributions are transfers, not operating expenses; principal reduces debt rather than constituting an operating expense. The dashboard includes only months for which **both data sources** are available.
+**Actual cash flow** here means *AppFolio owner distributions minus mortgage payments paid personally*. Confirmed water payments are now also subtracted; other owner-paid costs are not included. Owner distributions are transfers, not operating expenses; principal reduces debt rather than constituting an operating expense. The dashboard includes only months for which **both data sources** are available.
 
 ## Architecture
 
@@ -73,7 +103,7 @@ export NESIAOS_MORTGAGE_DB_PATH="$PWD/local_data/demo_public/imported/mortgage.s
 python -m streamlit run dashboard/app.py
 ```
 
-The dashboard opens locally in your browser. Expect **April–September 2026**, a July negative cash-flow month, and a six-month total actual cash flow of **$4,475.30**. See [`examples/demo_expected_totals.csv`](examples/demo_expected_totals.csv) for reference values. Both demo databases are created under ignored `local_data/`; no real financial data is required.
+The dashboard opens locally in your browser. Expect **April–September 2026**, a July negative cash-flow month, and a six-month pre-water baseline of **$4,475.30**, or **$3,935.30** after confirmed water payments. See [`examples/demo_expected_totals.csv`](examples/demo_expected_totals.csv) for reference values. Both demo databases are created under ignored `local_data/`; no real financial data is required.
 
 Run automated tests:
 
@@ -107,3 +137,4 @@ Rebuilding the PDFs may change their byte-level checksums. The publishing workfl
 - More flexible reporting for multiple properties.
 
 NesiaOS began as a broader vision for AI-assisted personal operations; the rental-property analytics system is its first deployed module.
+

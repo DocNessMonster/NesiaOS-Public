@@ -10,7 +10,9 @@ import sqlite3
 import pandas as pd
 import streamlit as st
 
-from src.services.financial_report import monthly_report
+from src.services.financial_report import monthly_report, DEFAULT_DB_PATH
+from src.services.water_report import read_bills, monthly_water_report
+from src.services.water_importer import record_payment
 
 
 st.set_page_config(page_title="NesiaOS", page_icon="🏠", layout="wide")
@@ -63,12 +65,16 @@ Do not include credentials, bills, or other private information.
     
 st.title("NesiaOS")
 st.subheader("Rental Property Dashboard")
+st.markdown("[Privacy policy](?page=privacy)")
 if os.environ.get("NESIAOS_PUBLIC_DEMO") == "1":
     st.info("PUBLIC DEMO — All statements, names, and financial figures are fictional.")
-st.caption("AppFolio statements + mortgage payment history | All amounts in USD")
+st.caption("AppFolio statements + mortgage history + water bills | All amounts in USD")
 
 ROOT = Path(__file__).resolve().parents[1]
 MORTGAGE_DB = Path(os.environ.get("NESIAOS_MORTGAGE_DB_PATH") or ROOT / "local_data" / "mortgage" / "mortgage.sqlite").expanduser()
+
+WATER_DB = Path(os.environ.get("NESIAOS_WATER_DB_PATH") or ROOT / "local_data" / "water" / "water.sqlite").expanduser()
+OWNER_DB = Path(os.environ.get("NESIAOS_DB_PATH") or DEFAULT_DB_PATH).expanduser()
 
 
 def dollars(value):
@@ -142,10 +148,21 @@ if combined.empty:
     st.error("There are no months with both AppFolio and mortgage data.")
     st.stop()
 
+# Utility receipts already belong to AppFolio income/distributions; never add again.
+try:
+    water_bills = read_bills(WATER_DB)
+    water_monthly = monthly_water_report(WATER_DB, OWNER_DB)
+except (ValueError, sqlite3.Error) as exc:
+    st.error(f"Water records need review: {exc}")
+    st.stop()
+combined = combined.merge(water_monthly, on="month", how="left")
+water_columns = ["water_billed", "water_paid", "utility_reimbursements", "unconfirmed_bills"]
+combined[water_columns] = combined[water_columns].fillna(0)
+
 # Cash actually reaching the owner, minus payments from the owner's bank account.
 # This is NOT the same as property operating cash flow.
 combined["actual_cash_flow"] = (
-    combined["owner_distributions"] - combined["mortgage_payment"]
+    combined["owner_distributions"] - combined["mortgage_payment"] - combined["water_paid"]
 )
 
 missing_appfolio = sorted(set(mortgage_monthly["month"]) - set(report["month"]))
@@ -174,7 +191,7 @@ ytd = combined.loc[
 def summary_items(frame):
     return [
         ("Actual cash flow", frame["actual_cash_flow"]),
-        ("Rental income", frame["operating_income"]),
+        ("Operating income (incl. reimbursements)", frame["operating_income"]),
         ("Operating expenses", frame["operating_expenses"]),
         ("Mortgage payments", frame["mortgage_payment"]),
         ("Principal paid", frame["principal_paid"]),
@@ -191,7 +208,7 @@ metrics_grid(summary_items(ytd.sum(numeric_only=True)))
 
 st.divider()
 st.subheader("Actual Monthly Cash Flow")
-st.caption("Owner distributions received minus mortgage payments made from your account.")
+st.caption("Owner distributions received minus mortgage and confirmed water payments. Unconfirmed water payments are excluded.")
 st.bar_chart(
     combined.set_index("month")[["actual_cash_flow"]].rename(
         columns={"actual_cash_flow": "Actual cash flow"}
@@ -204,17 +221,70 @@ st.subheader("Monthly Cash Outflow Breakdown")
 st.caption("Stacked monthly expenses and mortgage components; principal is debt repayment, not an expense.")
 st.bar_chart(
     combined.set_index("month")[[
-        "operating_expenses", "principal_paid", "interest_paid", "escrow_contribution"
+        "operating_expenses", "principal_paid", "interest_paid", "escrow_contribution", "water_paid"
     ]].rename(columns={
         "operating_expenses": "Operating expenses",
         "principal_paid": "Principal",
         "interest_paid": "Interest",
         "escrow_contribution": "Escrow contribution",
+        "water_paid": "Confirmed water payments",
     }),
     stack=True,
-    color=["#4C8DCE", "#E7A449", "#9876BB", "#59A98E"],
+    color=["#4C8DCE", "#E7A449", "#9876BB", "#59A98E", "#327C9C"],
     use_container_width=True,
 )
+
+st.divider()
+st.subheader("Water Bills & Utility Reimbursements")
+water_cols = st.columns(3)
+water_cols[0].metric("Water charges billed", dollars(selected["water_billed"]))
+water_cols[1].metric("Utility reimbursements received", dollars(selected["utility_reimbursements"]))
+water_cols[2].metric("Confirmed water payments", dollars(selected["water_paid"]))
+st.caption(
+    "Charges use the bill month; payments use the confirmed payment date; "
+    "reimbursements use the AppFolio statement month and are already included in income. "
+    "Receipts are not automatically matched to individual bills, so a monthly difference "
+    "does not establish what a tenant owes."
+)
+if WATER_DB.is_file():
+    visible_bills = water_bills.loc[water_bills["bill_date"].str[:7] <= selected_month].copy()
+    pending_count = visible_bills["payment_date"].isna().sum()
+    if pending_count:
+        st.warning(f"{pending_count} imported bill(s) through this month have no confirmed payment. "
+                   "Cash flow excludes those payments until confirmed.")
+    st.dataframe(visible_bills.drop(columns=["bill_id"]).rename(columns={
+        "current_charges": "Current charges", "total_due": "Total due", "payment_amount": "Confirmed amount paid"
+    }), hide_index=True, use_container_width=True)
+    if not water_monthly.empty:
+        st.bar_chart(water_monthly.loc[water_monthly["month"] <= selected_month].set_index("month")[[
+            "water_billed", "utility_reimbursements", "water_paid"
+        ]].rename(columns={"water_billed": "Charges billed", "utility_reimbursements": "Reimbursements received",
+                           "water_paid": "Confirmed payments"}), stack=False)
+    if os.environ.get("NESIAOS_PUBLIC_DEMO") != "1":
+        with st.expander("Confirm a water bill payment"):
+            st.caption("Enter the date and full amount actually paid. Autopay alone does not confirm a payment. "
+                       "Partial or combined payments need separate review.")
+            unpaid = water_bills.loc[water_bills["payment_date"].isna()]
+            if unpaid.empty:
+                st.write("No bills awaiting payment confirmation.")
+            else:
+                choices = unpaid["bill_id"].tolist()
+                labels = {r["bill_id"]: f"{r['bill_date']} | charges {dollars(r['current_charges'])} | due {dollars(r['total_due'])}"
+                          for r in unpaid.to_dict("records")}
+                with st.form("water_payment"):
+                    bill_id = st.selectbox("Bill", choices, format_func=lambda key: labels[key])
+                    paid_on = st.date_input("Actual payment date")
+                    paid_amount = st.number_input("Actual full payment amount", min_value=0.0, step=0.01)
+                    submitted = st.form_submit_button("Record confirmed payment")
+                if submitted:
+                    try:
+                        record_payment(WATER_DB, bill_id, paid_on.isoformat(), paid_amount)
+                    except (ValueError, sqlite3.Error) as exc:
+                        st.error(str(exc))
+                    else:
+                        st.rerun()
+else:
+    st.info("No water database found yet. Import bills to populate this section.")
 
 st.divider()
 st.subheader("Mortgage & Escrow Details")
@@ -243,10 +313,10 @@ st.dataframe(
     combined.loc[combined["month"] <= selected_month, [
         "month", "operating_income", "operating_expenses", "owner_distributions",
         "mortgage_payment", "principal_paid", "interest_paid", "escrow_contribution",
-        "actual_cash_flow",
+        "actual_cash_flow", "water_billed", "water_paid", "utility_reimbursements",
     ]].rename(columns={
         "month": "Month",
-        "operating_income": "Rental income",
+        "operating_income": "Operating income (incl. reimbursements)",
         "operating_expenses": "Operating expenses",
         "owner_distributions": "Owner distributions",
         "mortgage_payment": "Mortgage payment",
@@ -254,15 +324,20 @@ st.dataframe(
         "interest_paid": "Interest",
         "escrow_contribution": "Escrow contribution",
         "actual_cash_flow": "Actual cash flow",
+        "water_billed": "Water charges billed",
+        "water_paid": "Confirmed water payments",
+        "utility_reimbursements": "Utility reimbursements (already in income)",
     }),
     use_container_width=True,
     hide_index=True,
 )
 
 st.info(
-    "Actual cash flow = AppFolio owner distributions − mortgage payments made. "
+    "Actual cash flow = AppFolio owner distributions − mortgage payments − confirmed water payments. "
+    "Water bills without a confirmed payment date and amount are excluded from cash flow. "
     "Other personally paid rental expenses are not yet included. "
     "Mortgage principal builds equity; escrow disbursements (taxes/insurance) "
     "are not subtracted a second time. "
     "Year-to-date totals use only months available in BOTH data sources."
 )
+

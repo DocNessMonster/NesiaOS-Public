@@ -29,3 +29,13 @@ The files use the structural table conventions expected by NesiaOS' current PDF 
 6. Generate a public release only **after** reviewing the full public file list and confirming it contains synthetic assets only.
 
 All amounts in this package are made up for demonstration. Actual property profits, tax treatment, and loan balances are not represented.
+
+
+## Synthetic utility bills
+
+`demo_water_bill_2026_04.pdf` through `demo_water_bill_2026_09.pdf` are six
+entirely invented bills with fictional account `0000002026`, totaling $540.00.
+They are visibly marked SYNTHETIC DEMO and are not redacted real statements.
+July exercises a continuation page. `demo_water_expected_totals.csv` lists
+charges, invented confirmed payments, and the existing AppFolio utility receipt.
+Regenerate with `python examples/generate_water_demo.py` (reportlab required).

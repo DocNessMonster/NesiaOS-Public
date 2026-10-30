@@ -71,20 +71,45 @@ def build_demo_databases(destination: Path) -> tuple[Path, Path]:
     return owner_db, mortgage_db
 
 
+def build_demo_water_database(destination: Path) -> Path:
+    """Only synthetic bills and explicitly invented payments enter the public demo."""
+    from src.services.water_importer import parse_pdf, save_bill, record_payment
+    destination = Path(destination)
+    destination.mkdir(parents=True, exist_ok=True)
+    water_db = destination / "water.sqlite"
+    if water_db.exists():
+        raise FileExistsError("Demo water import requires a new database")
+    for month in range(4, 10):
+        path = ROOT / "examples" / f"demo_water_bill_2026_{month:02d}.pdf"
+        bill = parse_pdf(path)
+        if bill["account_number"] != "0000002026":
+            raise ValueError("Public demo requires the fictional water account")
+        save_bill(bill, water_db)
+        with sqlite3.connect(water_db) as conn:
+            bill_id = conn.execute("SELECT bill_id FROM water_bills WHERE bill_date = ?",
+                                   (bill["bill_date"],)).fetchone()[0]
+        record_payment(water_db, bill_id, f"2026-{month:02d}-22", bill["total_due"])
+    return water_db
+
+
 def main() -> None:
     import streamlit as st
 
     @st.cache_resource(show_spinner=False)
-    def prepare_demo() -> tuple[Path, Path]:
-        return build_demo_databases(Path(tempfile.mkdtemp(prefix="nesiaos_public_demo_")))
+    def prepare_demo() -> tuple[Path, Path, Path]:
+        destination = Path(tempfile.mkdtemp(prefix="nesiaos_public_demo_"))
+        owner, mortgage = build_demo_databases(destination)
+        return owner, mortgage, build_demo_water_database(destination)
 
-    owner_db, mortgage_db = prepare_demo()
+    owner_db, mortgage_db, water_db = prepare_demo()
     # Override preexisting settings: this entrypoint must NEVER use private data.
     os.environ["NESIAOS_DB_PATH"] = str(owner_db)
     os.environ["NESIAOS_MORTGAGE_DB_PATH"] = str(mortgage_db)
+    os.environ["NESIAOS_WATER_DB_PATH"] = str(water_db)
     os.environ["NESIAOS_PUBLIC_DEMO"] = "1"
     runpy.run_path(str(ROOT / "dashboard" / "app.py"), run_name="__main__")
 
 
 if __name__ == "__main__":
     main()
+
