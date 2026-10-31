@@ -8,7 +8,54 @@
 
 NesiaOS converts supported property-management and mortgage-history PDFs into validated, structured data and combines them in a single interactive rental-property dashboard. This public repository contains only application code, automated tests, and **completely fictional demonstration documents**. It never includes the owner's real financial information. A separate public Streamlit Cloud demo runs only on fictional sample data.
 
-## Water bills in V1.2
+## Feature overview
+
+- Import supported property-management and mortgage-history PDFs into SQLite
+  for reconciled rental-property reporting.
+- Explore monthly and year-to-date income, expenses, mortgage payments,
+  principal, interest, escrow activity, and owner cash flow.
+- Track water charges separately from confirmed payments and utility
+  reimbursements to avoid double-counting.
+- Review estimated property equity alongside dated valuation and equity
+  history, with source details, estimate ranges, and mortgage balance dates.
+- Read financial tables with consistent dollar formatting while retaining
+  numeric values for sorting and calculations.
+- Explore the public Streamlit demo using completely fictional financial
+  documents and valuation snapshots.
+
+## Latest updates — October 30, 2026
+
+### Estimated property equity and history
+
+The public demo now includes six fictional April–September 2026 valuation
+snapshots. The equity section displays the latest estimated home value,
+source and retrieval date, estimate range, latest mortgage principal balance
+and its date, and estimated equity in dollars and as a percentage of value.
+A chart and expandable table show valuation and equity history.
+
+The latest-equity summary uses the latest saved valuation and mortgage
+balance independently of the reporting-month filter. Historical equity pairs
+each valuation with the latest mortgage record dated on or before its
+retrieval date; equity remains blank when no earlier balance is available.
+
+Estimated equity equals estimated home value minus mortgage principal.
+It is separate from rental cash flow and excludes selling costs, taxes,
+and other loans. An automated estimate is not an appraisal.
+
+The public demo generates all valuation snapshots locally, makes no
+valuation API calls, and overrides the valuation database path with a
+fresh synthetic database.
+
+### Consistent currency formatting
+
+Monthly Financial Details now displays every monetary column with dollar
+signs, thousands separators, and two decimal places, using the same
+negative-dollar convention as the summary metrics (for example, -$12.50).
+Underlying values remain numeric for sorting and calculations. Utility-table
+amounts also use currency formatting, and displayed cash flow is rounded
+to cents.
+
+### Water bill reporting — V1.2
 
 The dashboard includes six fictional April–September utility bills, totaling **$540.00**,
 with invented confirmed payments. Combined six-month owner cash flow after mortgage
@@ -38,7 +85,7 @@ Keep OAuth credentials and tokens in ignored `local_data/gmail/`. Optional
 archived received bills and excludes Sent mail. Scheduling on one computer updates
 that computer's database; another server needs its own import or a private DB sync.
 
-## What's new in V1.1
+## Earlier updates — V1.1
 
 - Import and reconcile supported AppFolio-style owner statements and rotated mortgage payment-history PDFs.
 - Persist mortgage payments and escrow disbursements in a separate SQLite database; repeated imports do not double-count transactions.
@@ -62,7 +109,9 @@ Mortgage history PDF ---> mortgage_importer.py --> mortgage.sqlite-+--> dashboar
 
 **Live URL: https://nesiaos-public.streamlit.app/**
 
-The public demo has its own entrypoint, `streamlit_app.py`, which automatically imports only the committed **fictional** PDF fixtures into fresh temporary SQLite databases. It does not use the private Ubuntu server, a real owner's statements, or private databases. The dashboard displays a prominent public-demo label.
+The public demo has its own entrypoint, `streamlit_app.py`, which imports the
+committed **fictional** PDF fixtures and generates six fictional valuation
+snapshots in fresh temporary SQLite databases. It does not use the private Ubuntu server, a real owner's statements, or private databases. The dashboard displays a prominent public-demo label.
 
 To deploy: sign in to [Streamlit Community Cloud](https://share.streamlit.io/), select **Create app / Deploy app**, connect the public GitHub repository `DocNessMonster/NesiaOS-Public`, set branch `main` and entrypoint `streamlit_app.py`, choose a public app URL, and deploy. Streamlit installs dependencies from `requirements.txt`.
 
@@ -75,6 +124,10 @@ Requires Python 3.12+ and the dependencies in `requirements.txt`. Run the follow
 ```bash
 python -m pip install -r requirements.txt
 ```
+
+For the complete public demo—including water payments and valuation/equity
+history—use `python -m streamlit run streamlit_app.py`. The manual steps below
+initialize the owner-statement and mortgage databases only.
 
 Import the six **synthetic** owner statements into one new database:
 
@@ -128,11 +181,14 @@ Rebuilding the PDFs may change their byte-level checksums. The publishing workfl
 - Imported PDFs, personal exports, database files, `.env` files, and deployment configuration must remain **local and untracked**.
 - The public release is built from a **strict allowlist** and excludes private repository history. An additional fixture-hash check guards against accidentally publishing other PDFs in place of the approved samples.
 - `NESIAOS_DB_PATH` selects the property-management SQLite file. `NESIAOS_MORTGAGE_DB_PATH` selects the mortgage SQLite file; otherwise the private local default is `local_data/mortgage/mortgage.sqlite`.
+- `NESIAOS_VALUATION_DB_PATH` selects the saved valuation SQLite file;
+  otherwise the private local default is
+  `local_data/valuation/valuations.sqlite`. The public demo overrides this
+  setting with its synthetic database.
 - Do not use the synthetic example figures for financial decisions. These metrics are operational reporting, not tax or investment advice.
 
 ## Roadmap
 
-- Optional property-equity estimates.
 - Additional import formats and classification tests.
 - More flexible reporting for multiple properties.
 
