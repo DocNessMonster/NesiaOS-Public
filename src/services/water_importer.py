@@ -104,6 +104,16 @@ def record_payment(db_path, bill_id, paid_on, amount):
         row = conn.execute('SELECT payment_date, payment_amount_cents FROM water_bills WHERE bill_id = ?', (bill_id,)).fetchone()
         if row is None:
             raise ValueError('Bill not found')
+        # Prevent the legacy one-bill form from double counting ledger allocations.
+        has_allocations = conn.execute(
+            "SELECT 1 FROM sqlite_master WHERE type='table' "
+            "AND name='water_payment_allocations'"
+        ).fetchone()
+        if has_allocations and conn.execute(
+            "SELECT 1 FROM water_payment_allocations WHERE bill_id = ?",
+            (bill_id,),
+        ).fetchone():
+            raise ValueError('Bill already has bank payment allocations; use reconciliation')
         if row[0] is not None:
             if row == (paid_on, cents):
                 return
