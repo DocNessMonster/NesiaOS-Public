@@ -64,7 +64,13 @@ def test_monthly_table_formats_currency_without_changing_numeric_values(monkeypa
         default_timeout=30,
     ).run()
     assert not app.exception
-    table = app.dataframe[-1]
+    # New tax-report tables appear after the existing monthly financial table.
+    # Select by schema rather than assuming it is the final dataframe.
+    tables = [t for t in app.dataframe
+              if "Actual cash flow" in t.value.columns
+              and "Operating income (incl. reimbursements)" in t.value.columns]
+    assert len(tables) == 1
+    table = tables[0]
     # Streamlit moved Arrow data into a nested message in newer releases.
     arrow = getattr(table.proto, "arrow_data", table.proto)
     assert arrow.styler.display_values, "Monthly currency formatting is missing"
@@ -93,7 +99,14 @@ def test_public_equity_uses_fictional_values_without_api_calls(monkeypatch):
     assert metrics["Estimated home value"] == "$282,500.00"
     assert "Estimated equity" in metrics
     # Monthly rental cash flow is unaffected by property appreciation.
-    assert round(app.dataframe[-1].value["Actual cash flow"].sum(), 2) == 3935.30
-    history = app.dataframe[-2].value
+    monthly_tables = [t.value for t in app.dataframe
+                      if "Actual cash flow" in t.value.columns]
+    assert len(monthly_tables) == 1
+    assert round(monthly_tables[0]["Actual cash flow"].sum(), 2) == 3935.30
+    equity_tables = [t.value for t in app.dataframe
+                     if "Source" in t.value.columns
+                     and "Estimated value" in t.value.columns]
+    assert len(equity_tables) == 1
+    history = equity_tables[0]
     assert set(history["Source"]) == {"Synthetic demo"}
     assert len(history) == 6
