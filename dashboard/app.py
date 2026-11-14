@@ -13,7 +13,9 @@ import streamlit as st
 from src.services.financial_report import monthly_report, DEFAULT_DB_PATH
 from src.services.water_report import read_bills, monthly_water_report
 from src.services.water_importer import record_payment
+from src.services.water_reconciliation import bill_reconciliation
 from src.services.property_value_report import read_valuations, calculate_equity, equity_history
+from dashboard.schedule_e_section import render_schedule_e
 
 
 st.set_page_config(page_title="NesiaOS", page_icon="🏠", layout="wide")
@@ -250,19 +252,26 @@ st.caption(
 )
 if WATER_DB.is_file():
     visible_bills = water_bills.loc[water_bills["bill_date"].str[:7] <= selected_month].copy()
-    pending_count = visible_bills["payment_date"].isna().sum()
+    balances = pd.DataFrame(bill_reconciliation(WATER_DB))
+    visible_bills = visible_bills.merge(
+        balances[["bill_id", "remaining_cents", "allocated_cents"]],
+        on="bill_id", how="left",
+    )
+    visible_bills["Bank allocations"] = visible_bills["allocated_cents"].fillna(0) / 100
+    visible_bills["Remaining unmatched"] = visible_bills["remaining_cents"].fillna(0) / 100
+    pending_count = int((visible_bills["remaining_cents"] > 0).sum())
     if pending_count:
-        st.warning(f"{pending_count} imported bill(s) through this month have no confirmed payment. "
-                   "Cash flow excludes those payments until confirmed.")
-    st.dataframe(visible_bills.drop(columns=["bill_id"]).rename(columns={
+        st.warning(f"{pending_count} imported bill(s) through this month have an unmatched balance. "
+                   "Only confirmed withdrawals are included in cash flow.")
+    st.dataframe(visible_bills.drop(columns=["bill_id", "remaining_cents", "allocated_cents"]).rename(columns={
         "bill_date": "Bill date", "due_date": "Due date", "service_start": "Service start",
         "service_end": "Service end", "water": "Water", "wastewater": "Wastewater", "solid_waste": "Trash",
         "balance_forward": "Previous balance", "adjustments": "Adjustments", "payment_date": "Payment date",
-        "current_charges": "Current charges", "total_due": "Total due", "payment_amount": "Confirmed amount paid"
+        "current_charges": "Current charges", "total_due": "Total due", "payment_amount": "Legacy confirmed amount"
     }), hide_index=True, use_container_width=True, column_config={
         name: st.column_config.NumberColumn(format="$%.2f")
         for name in ("Water", "Wastewater", "Trash", "Previous balance", "Adjustments",
-                     "Current charges", "Total due", "Confirmed amount paid")
+                     "Current charges", "Total due", "Legacy confirmed amount", "Bank allocations", "Remaining unmatched")
     })
     if not water_monthly.empty:
         st.bar_chart(water_monthly.loc[water_monthly["month"] <= selected_month].set_index("month")[[
@@ -271,9 +280,9 @@ if WATER_DB.is_file():
                            "water_paid": "Confirmed payments"}), stack=False)
     if os.environ.get("NESIAOS_PUBLIC_DEMO") != "1":
         with st.expander("Confirm a water bill payment"):
-            st.caption("Enter the date and full amount actually paid. Autopay alone does not confirm a payment. "
-                       "Partial or combined payments need separate review.")
-            unpaid = water_bills.loc[water_bills["payment_date"].isna()]
+            st.caption("Enter only an independently verified legacy single-bill payment. "
+                       "Bank CSV combined or partial payments use the reconciliation CLI.")
+            unpaid = visible_bills.loc[visible_bills["remaining_cents"] > 0]
             if unpaid.empty:
                 st.write("No bills awaiting payment confirmation.")
             else:
@@ -398,3 +407,17 @@ st.info(
     "Year-to-date totals use only months available in BOTH data sources."
 )
 
+
+# Tax reporting is intentionally separate from the monthly operating dashboard.
+CAPITAL_DB = Path(os.environ.get("NESIAOS_CAPITAL_DB_PATH") or
+                  ROOT / "local_data" / "capital" / "capital.sqlite").expanduser()
+render_schedule_e(
+    OWNER_DB, MORTGAGE_DB, WATER_DB, CAPITAL_DB,
+    available_years=report["month"].str[:4].dropna().unique(),
+)
+
+# Public calculator deliberately uses fictional defaults only, and never touches
+# source tax documents, private accounting databases, or Schedule E Line 18.
+if os.environ.get("NESIAOS_PUBLIC_DEMO") == "1":
+    from dashboard.depreciation_demo_section import render_depreciation_demo
+    render_depreciation_demo()

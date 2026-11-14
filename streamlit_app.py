@@ -114,21 +114,46 @@ def build_demo_valuation_database(destination: Path) -> Path:
     return db
 
 
+
+def build_demo_capital_database(destination: Path) -> Path:
+    """Create fictional capital-asset data in the temporary public demo only."""
+    from src.services.capital_report import add_improvement
+    destination = Path(destination)
+    db = destination / "capital.sqlite"
+    if db.exists():
+        raise FileExistsError("Demo capital database must be new")
+    add_improvement(
+        asset_id="fictional-demo-improvement",
+        description="Fictional rental kitchen upgrade",
+        cost="6250.00",
+        completion_date="2026-07-10",
+        placed_in_service_date="2026-07-10",
+        payment_source="fictional_demo",
+        asset_type="building_improvement",
+        notes="Completely fictional example; not a tax determination",
+        db_path=db,
+    )
+    return db
+
+
 def main() -> None:
     import streamlit as st
 
     @st.cache_resource(show_spinner=False)
-    def prepare_demo() -> tuple[Path, Path, Path, Path]:
+    def prepare_demo() -> tuple[Path, Path, Path, Path, Path]:
         destination = Path(tempfile.mkdtemp(prefix="nesiaos_public_demo_"))
         owner, mortgage = build_demo_databases(destination)
-        return owner, mortgage, build_demo_water_database(destination), build_demo_valuation_database(destination)
+        return (owner, mortgage, build_demo_water_database(destination),
+                build_demo_valuation_database(destination),
+                build_demo_capital_database(destination))
 
-    owner_db, mortgage_db, water_db, valuation_db = prepare_demo()
+    owner_db, mortgage_db, water_db, valuation_db, capital_db = prepare_demo()
     # Override preexisting settings: this entrypoint must NEVER use private data.
     os.environ["NESIAOS_DB_PATH"] = str(owner_db)
     os.environ["NESIAOS_MORTGAGE_DB_PATH"] = str(mortgage_db)
     os.environ["NESIAOS_WATER_DB_PATH"] = str(water_db)
     os.environ["NESIAOS_VALUATION_DB_PATH"] = str(valuation_db)
+    os.environ["NESIAOS_CAPITAL_DB_PATH"] = str(capital_db)
     os.environ["NESIAOS_PUBLIC_DEMO"] = "1"
     runpy.run_path(str(ROOT / "dashboard" / "app.py"), run_name="__main__")
 

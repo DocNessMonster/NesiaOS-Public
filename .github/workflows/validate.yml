@@ -1,0 +1,56 @@
+name: Validate NesiaOS
+
+on:
+  push:
+    branches:
+      - main
+      - release/**
+  pull_request:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Run tests
+        run: python -m pytest -q
+      - name: Reject tracked private file types
+        shell: bash
+        run: |
+          python - <<'PY'
+          import subprocess
+          from pathlib import Path
+          tracked = subprocess.check_output(['git', 'ls-files'], text=True).splitlines()
+          forbidden = []
+          for file in tracked:
+              path = Path(file)
+              if file.startswith('local_data/') or file.startswith('demo_data/'):
+                  forbidden.append(file)
+              if path.suffix.lower() in {'.sqlite', '.sqlite3', '.db'}:
+                  forbidden.append(file)
+              # Only the reviewed fictional demo totals CSVs may be committed.
+              if path.suffix.lower() == '.csv' and file not in {
+                  'examples/demo_expected_totals.csv', 'examples/demo_water_expected_totals.csv'
+              }:
+                  forbidden.append(file)
+              if path.suffix.lower() == '.pdf' and not file.startswith('examples/'):
+                  forbidden.append(file)
+              if path.name == '.env' or path.name.startswith('.env.'):
+                  forbidden.append(file)
+          if forbidden:
+              raise SystemExit('Unexpected tracked private-data paths: ' + ', '.join(sorted(set(forbidden))))
+          print('Tracked private-data path check passed')
+          PY
