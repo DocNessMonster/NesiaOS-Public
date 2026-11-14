@@ -5,6 +5,8 @@ from pathlib import Path
 
 import pandas as pd
 
+from src.services.water_reconciliation import read_confirmed_payments, bill_reconciliation
+
 COLUMNS = ['bill_id', 'bill_date', 'due_date', 'service_start', 'service_end',
            'water', 'wastewater', 'solid_waste', 'current_charges', 'balance_forward',
            'adjustments', 'total_due', 'payment_date', 'payment_amount']
@@ -43,10 +45,11 @@ def monthly_water_report(water_db, owner_db):
     for row in bills.to_dict('records'):
         item = entry(row['bill_date'][:7])
         item['water_billed'] += row['current_charges']
-        if not row['payment_date']:
-            item['unconfirmed_bills'] += 1
-        else:
-            entry(row['payment_date'][:7])['water_paid'] += row['payment_amount']
+    for payment in read_confirmed_payments(water_db):
+        entry(payment['paid_on'][:7])['water_paid'] += payment['amount_cents'] / 100
+    for bill in bill_reconciliation(water_db):
+        if bill['remaining_cents'] > 0:
+            entry(bill['bill_date'][:7])['unconfirmed_bills'] += 1
     with sqlite3.connect(Path(owner_db).resolve().as_uri() + '?mode=ro', uri=True) as conn:
         for month, amount in conn.execute('''SELECT substr(statement_start,1,7), SUM(income)
             FROM transactions WHERE category='utility_reimbursement' AND flow_type='income'
