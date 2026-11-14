@@ -8,6 +8,54 @@
 
 NesiaOS converts supported property-management and mortgage-history PDFs into validated, structured data and combines them in a single interactive rental-property dashboard. This public repository contains only application code, automated tests, and **completely fictional demonstration documents**. It never includes the owner's real financial information. A separate public Streamlit Cloud demo runs only on fictional sample data.
 
+## NesiaOS v1.3 — Schedule E & Depreciation Explorer (November 2026)
+
+**Live demo:** https://nesiaos-public.streamlit.app/
+
+V1.3 adds a preliminary Schedule E tax-reporting section **at the bottom of the
+rental dashboard**, and a separate interactive depreciation/reconciliation
+explorer using **entirely fictional information**.
+
+- Preliminary **Schedule E**: reconcile fictional rental income and expenses
+  into IRS-like categories (management, maintenance, repairs, commissions,
+  mortgage interest, insurance, property taxes, utilities); display the annual
+  totals, capital spending, review flags, and a downloadable **NOT FILING READY**
+  CSV. Capital improvements are tracked separately from current expenses.
+- **Depreciation scenario calculator**: vary the *fictional* purchase price,
+  eligible purchase closing costs, land/building split, pre-rental renovations,
+  estimated FMV at conversion, rental availability date, and a later qualifying
+  building improvement. It shows provisional 2025 and 2026 straight-line
+  27.5-year, mid-month estimates and an illustrative prior-year difference.
+- **Water reconciliation:** support confirmed multi-bill bank payment
+  allocations and avoid counting a water withdrawal twice. This is part of the
+  underlying reporting logic; the live example uses invented payments.
+- **Historical asset handling:** the synthetic demo contains a fictional
+  capital improvement; no actual property, loan, tenant, tax return, or tax
+  documents are published.
+- **Tax caution:** no tax filing or 1040-X amendment is generated. Depreciation
+  is shown in the separate educational scenario calculator, **not automatically
+  posted to Schedule E Line 18**. The preliminary Schedule E worksheet continues
+  to flag unverified basis, year coverage, and expense classifications.
+
+### Where to find the new features
+
+Open the [public demo](https://nesiaos-public.streamlit.app/), scroll past
+**Monthly Financial Details** to **Schedule E / Tax Reporting**, then continue to
+**Depreciation & Prior-Year Reconciliation — Demo**.
+
+To run the **complete synthetic demo locally**, from the repository root:
+
+```bash
+python -m pip install -r requirements.txt
+python -m streamlit run streamlit_app.py
+python -m pytest -q
+```
+
+The public demo boots temporary SQLite databases from approved **fictional**
+fixtures. It makes no Gmail, mortgage-lender, AppFolio, bank, or valuation
+API requests; production imports and any future client-account automation
+remain outside this release.
+
 ## Feature overview
 
 - Import supported property-management and mortgage-history PDFs into SQLite
@@ -20,10 +68,12 @@ NesiaOS converts supported property-management and mortgage-history PDFs into va
   history, with source details, estimate ranges, and mortgage balance dates.
 - Read financial tables with consistent dollar formatting while retaining
   numeric values for sorting and calculations.
+- Explore preliminary Schedule E categories, fictional capital improvements,
+  and an interactive **fictional 2025–2026 depreciation scenario**.
 - Explore the public Streamlit demo using completely fictional financial
   documents and valuation snapshots.
 
-## Latest updates — October 30, 2026
+## Previous updates — October 30, 2026
 
 ### Estimated property equity and history
 
@@ -111,7 +161,7 @@ Mortgage history PDF ---> mortgage_importer.py --> mortgage.sqlite-+--> dashboar
 
 The public demo has its own entrypoint, `streamlit_app.py`, which imports the
 committed **fictional** PDF fixtures and generates six fictional valuation
-snapshots in fresh temporary SQLite databases. It does not use the private Ubuntu server, a real owner's statements, or private databases. The dashboard displays a prominent public-demo label.
+snapshots and a fictional capital asset in fresh temporary SQLite databases. It does not use the private Ubuntu server, a real owner's statements, or private databases. The dashboard displays a prominent public-demo label.
 
 To deploy: sign in to [Streamlit Community Cloud](https://share.streamlit.io/), select **Create app / Deploy app**, connect the public GitHub repository `DocNessMonster/NesiaOS-Public`, set branch `main` and entrypoint `streamlit_app.py`, choose a public app URL, and deploy. Streamlit installs dependencies from `requirements.txt`.
 
@@ -189,6 +239,9 @@ Rebuilding the PDFs may change their byte-level checksums. The publishing workfl
 
 ## Roadmap
 
+- Verified private asset/basis register and full multi-year MACRS schedule.
+- 2025 source-by-source Schedule E audit and amendment-review workflow.
+- Optional AppFolio and mortgage email automation, pending safe import validation.
 - Additional import formats and classification tests.
 - More flexible reporting for multiple properties.
 
