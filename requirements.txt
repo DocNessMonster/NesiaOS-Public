@@ -3,3 +3,4 @@ pdfplumber>=0.11,<1
 pandas>=2.2,<4
 streamlit>=1.40,<2
 pytest>=8,<10
+altair>=5,<7
