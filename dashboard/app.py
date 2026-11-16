@@ -8,6 +8,7 @@ import os
 import sqlite3
 
 import pandas as pd
+import altair as alt
 import streamlit as st
 
 from src.services.financial_report import monthly_report, DEFAULT_DB_PATH
@@ -83,6 +84,55 @@ VALUATION_DB = Path(os.environ.get("NESIAOS_VALUATION_DB_PATH") or ROOT / "local
 
 def dollars(value):
     return f"-${abs(value):,.2f}" if value < 0 else f"${value:,.2f}"
+
+
+def static_bar_chart(data, *, stacked=False, colors=None):
+    """Bar chart with automatic scaling but no hover or zoom interactions."""
+    index_name = data.index.name or "index"
+
+    plot_data = (
+        data.reset_index()
+        .rename(columns={index_name: "Month"})
+        .melt(id_vars="Month", var_name="Category", value_name="Amount")
+    )
+
+    color = alt.Color("Category:N", legend=alt.Legend(title=None))
+    if colors is not None:
+        color = alt.Color(
+            "Category:N",
+            scale=alt.Scale(domain=list(data.columns), range=colors),
+            legend=alt.Legend(title=None),
+        )
+
+    chart = (
+        alt.Chart(plot_data)
+        .mark_bar(tooltip=False)
+        .encode(
+            x=alt.X(
+                "Month:N",
+                sort=data.index.astype(str).tolist(),
+                title=None,
+            ),
+            y=alt.Y(
+                "Amount:Q",
+                stack="zero" if stacked else None,
+                scale=alt.Scale(zero=True, nice=True),
+                axis=alt.Axis(format="$,.0f"),
+            ),
+            color=color,
+        )
+        .properties(height=320)
+    )
+
+    if not stacked and len(data.columns) > 1:
+        chart = chart.encode(xOffset=alt.XOffset("Category:N"))
+
+    st.altair_chart(
+        chart,
+        use_container_width=True,
+        theme="streamlit",
+        on_select="ignore",
+    )
 
 
 def metrics_grid(items):
@@ -213,17 +263,16 @@ metrics_grid(summary_items(ytd.sum(numeric_only=True)))
 st.divider()
 st.subheader("Actual Monthly Cash Flow")
 st.caption("Owner distributions received minus mortgage and confirmed water payments. Unconfirmed water payments are excluded.")
-st.bar_chart(
+static_bar_chart(
     combined.set_index("month")[["actual_cash_flow"]].rename(
         columns={"actual_cash_flow": "Actual cash flow"}
     ),
-    color="#419C91",
-    use_container_width=True,
+    colors=["#419C91"],
 )
 
 st.subheader("Monthly Cash Outflow Breakdown")
 st.caption("Stacked monthly expenses and mortgage components; principal is debt repayment, not an expense.")
-st.bar_chart(
+static_bar_chart(
     combined.set_index("month")[[
         "operating_expenses", "principal_paid", "interest_paid", "escrow_contribution", "water_paid"
     ]].rename(columns={
@@ -233,9 +282,8 @@ st.bar_chart(
         "escrow_contribution": "Escrow contribution",
         "water_paid": "Confirmed water payments",
     }),
-    stack=True,
-    color=["#4C8DCE", "#E7A449", "#9876BB", "#59A98E", "#327C9C"],
-    use_container_width=True,
+    stacked=True,
+    colors=["#4C8DCE", "#E7A449", "#9876BB", "#59A98E", "#327C9C"],
 )
 
 st.divider()
@@ -274,10 +322,10 @@ if WATER_DB.is_file():
                      "Current charges", "Total due", "Legacy confirmed amount", "Bank allocations", "Remaining unmatched")
     })
     if not water_monthly.empty:
-        st.bar_chart(water_monthly.loc[water_monthly["month"] <= selected_month].set_index("month")[[
+        static_bar_chart(water_monthly.loc[water_monthly["month"] <= selected_month].set_index("month")[[
             "water_billed", "utility_reimbursements", "water_paid"
         ]].rename(columns={"water_billed": "Charges billed", "utility_reimbursements": "Reimbursements received",
-                           "water_paid": "Confirmed payments"}), stack=False)
+                           "water_paid": "Confirmed payments"}), stacked=False)
     if os.environ.get("NESIAOS_PUBLIC_DEMO") != "1":
         with st.expander("Confirm a water bill payment"):
             st.caption("Enter only an independently verified legacy single-bill payment. "
